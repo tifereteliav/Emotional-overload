@@ -1,0 +1,417 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Activity, 
+  Utensils, 
+  Syringe, 
+  Droplet, 
+  Moon, 
+  Phone, 
+  Tv, 
+  ArrowRight, 
+  ArrowLeft, 
+  ArrowUp, 
+  ArrowDown, 
+  Briefcase,
+  Mail,
+  User,
+  Car,
+  GraduationCap,
+  TrendingUp,
+  TrendingDown
+} from 'lucide-react';
+
+// --- Constants ---
+const GRID_SIZE = 13; 
+
+// Placeholder for the logo since we can't import local files in this environment
+// You can replace this string with: import logo from './logo.png'; if running locally
+const logo = "https://placehold.co/100x50/1e293b/white?text=LOGO"; 
+
+const DAILY_TASKS = [
+  { id: 1, label: 'בדיקת סוכר בוקר', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 2, label: 'אינסולין בזאלי', icon: <Syringe size={14} className="text-blue-500" /> },
+  { id: 3, label: 'הכנת א.בוקר', icon: <Utensils size={14} className="text-green-600" /> },
+  { id: 4, label: 'מדידה לפני אוכל', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 5, label: 'אינסולין קצר', icon: <Syringe size={14} className="text-orange-500" /> },
+  { id: 6, label: 'ארוחת בוקר', icon: <Utensils size={14} className="text-green-600" /> },
+  { id: 7, label: 'מדידה (שעתיים אחרי)', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 8, label: 'מדידה לפני צהריים', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 9, label: 'אינסולין קצר', icon: <Syringe size={14} className="text-orange-500" /> },
+  { id: 10, label: 'ארוחת צהריים', icon: <Utensils size={14} className="text-green-600" /> },
+  { id: 11, label: 'מדידה (שעתיים אחרי)', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 12, label: 'מדידה לפני ערב', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 13, label: 'אינסולין קצר', icon: <Syringe size={14} className="text-orange-500" /> },
+  { id: 14, label: 'ארוחת ערב', icon: <Utensils size={14} className="text-green-600" /> },
+  { id: 15, label: 'מדידה (שעתיים אחרי)', icon: <Droplet size={14} className="text-red-500" /> },
+  { id: 16, label: 'פעילות גופנית', icon: <Activity size={14} className="text-purple-500" /> },
+  { id: 17, label: 'שינה', icon: <Moon size={14} className="text-indigo-400" /> },
+];
+
+/* רשימת ההפרעות המעודכנת (ללא עייפות פתאומית) */
+const ALL_DISTRACTIONS = [
+  // Unique Story Events
+  { id: 'work_meeting', text: "פגישה חשובה בעבודה!", icon: <Briefcase size={40} />, duration: 3000, maxIndex: 10, unique: true }, 
+  { id: 'boss_email', text: "מייל דחוף מהבוס", icon: <Mail size={40} />, duration: 2500, maxIndex: 12, unique: true },
+  { id: 'school_call', text: "המורה מתקשרת מביה\"ס", icon: <GraduationCap size={40} />, duration: 2500, maxIndex: 9, unique: true },
+  { id: 'kid_chug', text: "צריך להסיע את הילד לחוג", icon: <Car size={40} />, duration: 3000, minIndex: 10, maxIndex: 14, unique: true },
+  { id: 'tv_show', text: "תוכנית טלוויזיה מושכת בטירוף", icon: <Tv size={40} />, duration: 3500, minIndex: 13, unique: true },
+  
+  // Repeatable Events (Routine diabetic/life issues)
+  { id: 'libre_high', text: "הליברה מצפצף: סוכר גבוה ↗️", icon: <TrendingUp size={40} color="#ef4444" />, duration: 2000, unique: false },
+  { id: 'libre_low', text: "הליברה מצפצף: סוכר נמוך ↘️", icon: <TrendingDown size={40} color="#f97316" />, duration: 2000, unique: false },
+  { id: 'urgent_call', text: "שיחת טלפון דחופה", icon: <Phone size={40} />, duration: 2500, unique: false },
+  { id: 'wife_call', text: "שיחה מבת הזוג", icon: <User size={40} />, duration: 2000, unique: false },
+];
+
+// --- Maze Generator ---
+const generateMaze = (size) => {
+  let grid = Array(size).fill().map(() => Array(size).fill(1));
+  let stack = [];
+  const startX = 1;
+  const startY = 1;
+  grid[startY][startX] = 0;
+  stack.push({ x: startX, y: startY });
+
+  const directions = [{ x: 0, y: -2 }, { x: 2, y: 0 }, { x: 0, y: 2 }, { x: -2, y: 0 }];
+
+  while (stack.length > 0) {
+    let current = stack[stack.length - 1];
+    let validNeighbors = [];
+
+    for (let dir of directions) {
+      let nx = current.x + dir.x;
+      let ny = current.y + dir.y;
+      if (nx > 0 && nx < size - 1 && ny > 0 && ny < size - 1 && grid[ny][nx] === 1) {
+        validNeighbors.push({ nx, ny, dx: dir.x / 2, dy: dir.y / 2 });
+      }
+    }
+
+    if (validNeighbors.length > 0) {
+      let chosen = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+      grid[chosen.ny][chosen.nx] = 0;
+      grid[current.y + chosen.dy][current.x + chosen.dx] = 0;
+      stack.push({ x: chosen.nx, y: chosen.ny });
+    } else {
+      stack.pop();
+    }
+  }
+
+  // Open maze significantly
+  for(let i=0; i < size * 6; i++) {
+     let rx = Math.floor(Math.random() * (size - 2)) + 1;
+     let ry = Math.floor(Math.random() * (size - 2)) + 1;
+     if (grid[ry][rx] === 1) grid[ry][rx] = 0;
+  }
+  return grid;
+};
+
+// --- Mobile App Component ---
+const DiabeticMazeMobileFinalV8 = () => {
+  const [maze, setMaze] = useState([]);
+  const [playerPos, setPlayerPos] = useState({ x: 1, y: 1 });
+  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+  const [taskLocations, setTaskLocations] = useState({});
+  const [gameState, setGameState] = useState('start'); 
+  const [distraction, setDistraction] = useState(null);
+  const [triggeredDistractionsIds, setTriggeredDistractionsIds] = useState(new Set());
+  
+  // Logic Control Variables
+  const [hasDistractedInStage, setHasDistractedInStage] = useState(false); 
+  const [stepsInCurrentStage, setStepsInCurrentStage] = useState(0); 
+
+  const [stress, setStress] = useState(20);
+  const [msg, setMsg] = useState("");
+
+  const startNewGame = () => {
+    const newMaze = generateMaze(GRID_SIZE);
+    setMaze(newMaze);
+    setPlayerPos({ x: 1, y: 1 });
+    setCurrentTaskIndex(0);
+    setStress(20);
+    setMsg("התחל בבדיקת סוכר!");
+    setGameState('playing');
+    setDistraction(null);
+    setTriggeredDistractionsIds(new Set());
+    
+    // Reset Logic Controls
+    setHasDistractedInStage(false);
+    setStepsInCurrentStage(0);
+
+    const locations = {};
+    const openCells = [];
+    newMaze.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell === 0 && (x !== 1 || y !== 1)) openCells.push({ x, y });
+      });
+    });
+
+    for (let i = openCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [openCells[i], openCells[j]] = [openCells[j], openCells[i]];
+    }
+    DAILY_TASKS.forEach((task, index) => {
+      if (index < openCells.length) locations[task.id] = openCells[index];
+    });
+    setTaskLocations(locations);
+  };
+
+  useEffect(() => { startNewGame(); }, []);
+
+  const vibrate = (pattern = 10) => {
+      if (navigator.vibrate) navigator.vibrate(pattern);
+  };
+
+  const move = useCallback((dx, dy) => {
+    if (gameState !== 'playing') return;
+
+    setPlayerPos((prev) => {
+      const newX = prev.x + dx;
+      const newY = prev.y + dy;
+
+      if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE || maze[newY][newX] === 1) {
+        vibrate([50]); 
+        return prev;
+      }
+
+      vibrate(10); 
+      
+      const currentSteps = stepsInCurrentStage + 1;
+      setStepsInCurrentStage(currentSteps);
+
+      // --- LOGIC ---
+      // Trigger ONE distraction per stage, quickly (after 2 steps, 30% chance)
+      if (!hasDistractedInStage && currentSteps > 2 && Math.random() < 0.30) { 
+        triggerDistraction();
+      }
+
+      return { x: newX, y: newY };
+    });
+  }, [maze, gameState, hasDistractedInStage, stepsInCurrentStage, triggeredDistractionsIds, currentTaskIndex]);
+
+  const handleControl = (e, dx, dy) => {
+    e.preventDefault();
+    e.stopPropagation();
+    move(dx, dy);
+  };
+
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+
+    const currentTask = DAILY_TASKS[currentTaskIndex];
+    if (!currentTask) return;
+
+    const targetLoc = taskLocations[currentTask.id];
+    
+    if (targetLoc && playerPos.x === targetLoc.x && playerPos.y === targetLoc.y) {
+      handleSuccess(currentTask);
+    } 
+    
+    for (let i = currentTaskIndex + 1; i < DAILY_TASKS.length; i++) {
+        const futureLoc = taskLocations[DAILY_TASKS[i].id];
+        if (futureLoc && playerPos.x === futureLoc.x && playerPos.y === futureLoc.y) {
+             setMsg("❌ לא עכשיו! יש סדר פעולות!");
+             setStress(s => Math.min(100, s + 10));
+             vibrate([50, 50, 50]);
+        }
+    }
+  }, [playerPos]);
+
+  const handleSuccess = (task) => {
+    vibrate([50, 50, 200]);
+    setMsg(`✅ בוצע: ${task.label}`);
+    setStress(s => Math.max(0, s - 5));
+    
+    // Reset for next stage
+    setHasDistractedInStage(false);
+    setStepsInCurrentStage(0);
+    
+    if (currentTaskIndex + 1 >= DAILY_TASKS.length) {
+      setGameState('won');
+    } else {
+      setCurrentTaskIndex(prev => prev + 1);
+    }
+  };
+
+  const triggerDistraction = () => {
+    // 1. Filter valid candidates
+    const candidates = ALL_DISTRACTIONS.filter(d => {
+        // Time constraints
+        if (d.minIndex !== undefined && currentTaskIndex < d.minIndex) return false;
+        if (d.maxIndex !== undefined && currentTaskIndex > d.maxIndex) return false;
+        
+        // Uniqueness check
+        if (d.unique && triggeredDistractionsIds.has(d.id)) return false;
+        
+        return true;
+    });
+
+    if (candidates.length === 0) return;
+
+    const dist = candidates[Math.floor(Math.random() * candidates.length)];
+    
+    if (dist.unique) {
+        setTriggeredDistractionsIds(prev => new Set(prev).add(dist.id));
+    }
+    
+    setHasDistractedInStage(true);
+
+    setDistraction(dist);
+    setGameState('frozen');
+    setStress(s => Math.min(100, s + 15));
+    vibrate([500]);
+    
+    setTimeout(() => {
+      setDistraction(null);
+      setGameState('playing');
+    }, dist.duration);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900 text-slate-100 font-sans flex flex-col overflow-hidden select-none" dir="rtl">
+      
+      {/* Header */}
+      <div className="bg-slate-800 p-2 px-4 shadow-md z-10 flex justify-between items-center h-14 shrink-0">
+         <div className="flex flex-col w-1/3">
+             <span className="text-[10px] text-slate-400">מד סטרס</span>
+             <div className="h-2 bg-slate-700 rounded-full w-full overflow-hidden">
+                 <div className={`h-full transition-all ${stress > 70 ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${stress}%`}}></div>
+             </div>
+         </div>
+         <div className="font-bold text-lg text-blue-300">העומס היומי</div>
+         <div className="text-xs bg-slate-700 px-2 py-1 rounded-full">{currentTaskIndex}/{DAILY_TASKS.length}</div>
+      </div>
+
+      {/* Status Bar */}
+      <div className="bg-slate-800/50 p-2 text-center border-b border-slate-700/50 shrink-0 h-10 flex items-center justify-center">
+          <span className={`text-sm font-medium animate-pulse ${msg.includes('❌') ? 'text-red-400' : 'text-green-400'}`}>
+              {msg || "נווט אל היעד..."}
+          </span>
+      </div>
+
+      {/* Game Area */}
+      <div className="flex-grow flex items-center justify-center relative bg-slate-950 p-2">
+         {/* Target Info */}
+         <div className="absolute top-2 left-2 right-2 flex justify-center z-10 pointer-events-none">
+             <div className="bg-slate-900/90 border border-yellow-500/30 px-4 py-1 rounded-full shadow-lg backdrop-blur text-yellow-400 text-sm font-bold flex items-center gap-2">
+                 יעד נוכחי: {DAILY_TASKS[currentTaskIndex]?.label} {DAILY_TASKS[currentTaskIndex]?.icon}
+             </div>
+         </div>
+
+         {/* Maze */}
+         <div 
+            className="grid gap-[1px] bg-slate-800 rounded-lg shadow-2xl overflow-hidden"
+            style={{
+                width: 'min(90vw, 45vh)', 
+                height: 'min(90vw, 45vh)',
+                gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+                gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`
+            }}
+         >
+             {maze.map((row, y) => row.map((cell, x) => {
+                 let content = null;
+                 if (playerPos.x === x && playerPos.y === y) {
+                     content = <div className="w-[80%] h-[80%] bg-blue-500 rounded-full border border-white shadow-lg shadow-blue-500/50 animate-pulse transition-all duration-75"></div>;
+                 } else {
+                     const taskId = Object.keys(taskLocations).find(key => taskLocations[key].x === x && taskLocations[key].y === y);
+                     if (taskId) {
+                         const taskIdx = DAILY_TASKS.findIndex(t => t.id === parseInt(taskId));
+                         const isCurrent = taskIdx === currentTaskIndex;
+                         const isPast = taskIdx < currentTaskIndex;
+                         
+                         if (!isPast) {
+                             content = (
+                                <div className={`flex items-center justify-center ${isCurrent ? 'animate-bounce scale-125 z-10' : 'opacity-30 grayscale'}`}>
+                                    {DAILY_TASKS[taskIdx].icon}
+                                </div>
+                             );
+                         }
+                     }
+                 }
+                 return (
+                     <div key={`${x}-${y}`} className={`flex items-center justify-center ${cell === 1 ? 'bg-slate-700' : 'bg-slate-900'}`}>
+                         {content}
+                     </div>
+                 );
+             }))}
+         </div>
+
+         {/* Distraction Overlay */}
+         {gameState === 'frozen' && distraction && (
+             <div className="absolute inset-0 z-50 bg-black/85 flex flex-col items-center justify-center text-center p-8 backdrop-blur-sm animate-in zoom-in duration-200">
+                 <div className="bg-slate-800 p-4 rounded-full mb-4 animate-bounce border-2 border-red-500/50">
+                    {distraction.icon}
+                 </div>
+                 <h2 className="text-2xl font-bold text-white mb-2">{distraction.text}</h2>
+                 <p className="text-slate-400 text-sm mb-4">הפעילות נעצרה...</p>
+                 <div className="w-full h-1 bg-slate-700 mt-4 rounded">
+                     <div className="h-full bg-red-500 animate-[width_2s_linear] w-full" style={{animationDuration: `${distraction.duration}ms`}}></div>
+                 </div>
+             </div>
+         )}
+         
+         {/* Win Overlay */}
+         {gameState === 'won' && (
+             <div className="absolute inset-0 z-50 bg-green-900/95 flex flex-col items-center justify-center text-center p-6">
+                 <h2 className="text-3xl font-bold text-white mb-2">לילה טוב! 😴</h2>
+                 <p className="text-green-200 mb-6">עברת את היום בשלום למרות כל ההפרעות.</p>
+                 <button onClick={startNewGame} className="bg-white text-green-900 px-6 py-3 rounded-full font-bold shadow-lg active:scale-95 transition">יום חדש</button>
+             </div>
+         )}
+      </div>
+
+      {/* Controls & Logo Container */}
+      <div className="bg-slate-800 shrink-0 pb-6 pt-2 px-4 rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-20">
+          <div className="flex justify-between items-center max-w-md mx-auto">
+              
+              {/* Controls D-PAD */}
+              <div className="grid grid-cols-3 gap-2 p-2 bg-slate-900/50 rounded-full border border-slate-700 shadow-inner">
+                  <div className="w-14 h-14"></div>
+                  <button 
+                    className="w-14 h-14 bg-slate-700 rounded-xl flex items-center justify-center shadow-md active:bg-blue-600 active:scale-95 transition-all touch-manipulation"
+                    onPointerDown={(e) => handleControl(e, 0, -1)}
+                  >
+                      <ArrowUp size={28} />
+                  </button>
+                  <div className="w-14 h-14"></div>
+
+                  <button 
+                    className="w-14 h-14 bg-slate-700 rounded-xl flex items-center justify-center shadow-md active:bg-blue-600 active:scale-95 transition-all touch-manipulation"
+                    onPointerDown={(e) => handleControl(e, -1, 0)}
+                  >
+                      <ArrowRight size={28} />
+                  </button>
+                  
+                  <div className="w-14 h-14 flex items-center justify-center">
+                      <div className="w-3 h-3 bg-slate-600 rounded-full shadow-inner"></div>
+                  </div>
+
+                  <button 
+                    className="w-14 h-14 bg-slate-700 rounded-xl flex items-center justify-center shadow-md active:bg-blue-600 active:scale-95 transition-all touch-manipulation"
+                    onPointerDown={(e) => handleControl(e, 1, 0)}
+                  >
+                      <ArrowLeft size={28} />
+                  </button>
+
+                  <div className="w-14 h-14"></div>
+                  <button 
+                    className="w-14 h-14 bg-slate-700 rounded-xl flex items-center justify-center shadow-md active:bg-blue-600 active:scale-95 transition-all touch-manipulation"
+                    onPointerDown={(e) => handleControl(e, 0, 1)}
+                  >
+                      <ArrowDown size={28} />
+                  </button>
+                  <div className="w-14 h-14"></div>
+              </div>
+
+              {/* Logo Container */}
+              <div className="flex flex-col items-center justify-center ml-4">
+                  <img src={logo} alt="Logo" className="h-16 w-auto object-contain mb-1 opacity-80" />
+                  <span className="text-[10px] text-slate-500">נווט עם החיצים</span>
+              </div>
+          </div>
+      </div>
+
+    </div>
+  );
+};
+
+export default DiabeticMazeMobileFinalV8;
