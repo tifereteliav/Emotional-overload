@@ -41,7 +41,8 @@
         import { 
             Activity, Utensils, Syringe, Droplet, Moon, Phone, Tv, 
             ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Briefcase, 
-            Mail, User, Car, GraduationCap, TrendingUp, TrendingDown 
+            Mail, User, Car, GraduationCap, TrendingUp, TrendingDown,
+            Info, Play
         } from 'lucide-react';
 
         // --- Constants ---
@@ -134,7 +135,10 @@
             const [playerPos, setPlayerPos] = useState({ x: 1, y: 1 });
             const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
             const [taskLocations, setTaskLocations] = useState({});
-            const [gameState, setGameState] = useState('start'); 
+            
+            // New state 'welcome' for the instruction screen
+            const [gameState, setGameState] = useState('welcome'); 
+            
             const [distraction, setDistraction] = useState(null);
             const [triggeredDistractionsIds, setTriggeredDistractionsIds] = useState(new Set());
             const [hasDistractedInStage, setHasDistractedInStage] = useState(false); 
@@ -142,6 +146,7 @@
             const [stress, setStress] = useState(20);
             const [msg, setMsg] = useState("");
 
+            // This function now just prepares the game but sets state to 'playing'
             const startNewGame = () => {
                 const newMaze = generateMaze(GRID_SIZE);
                 setMaze(newMaze);
@@ -173,8 +178,9 @@
                 setTaskLocations(locations);
             };
 
-            useEffect(() => { startNewGame(); }, []);
-
+            // Initial setup - run once but don't auto-start visual game, just prepare data if needed
+            // Actually we can just wait for user to click start.
+            
             const vibrate = (pattern = 10) => {
                 if (navigator.vibrate) navigator.vibrate(pattern);
             };
@@ -196,7 +202,6 @@
                     const currentSteps = stepsInCurrentStage + 1;
                     setStepsInCurrentStage(currentSteps);
 
-                    // Logic: Trigger one distraction per stage, quickly
                     if (!hasDistractedInStage && currentSteps > 2 && Math.random() < 0.30) { 
                         triggerDistraction();
                     }
@@ -298,6 +303,48 @@
 
                     {/* Game Area */}
                     <div className="flex-grow flex items-center justify-center relative bg-slate-950 p-2">
+                        
+                        {/* Welcome / Instructions Screen */}
+                        {gameState === 'welcome' && (
+                             <div className="absolute inset-0 z-50 bg-slate-900/95 flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm">
+                                <div className="max-w-md w-full bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl overflow-y-auto max-h-[80vh]">
+                                    <h1 className="text-2xl font-bold text-blue-300 mb-4 flex items-center justify-center gap-2">
+                                        <Info size={24} /> הוראות המשחק
+                                    </h1>
+                                    
+                                    <div className="text-right space-y-4 text-slate-300 text-sm mb-6">
+                                        <p>ברוכים הבאים למבוך המדמה יום בחייו של אדם המתמודד עם סוכרת ומטופל באינסולין ארוך וקצר טווח.</p>
+                                        
+                                        <div className="bg-slate-700/50 p-3 rounded-lg">
+                                            <strong className="text-yellow-400 block mb-1">🎯 המטרה:</strong>
+                                            להשלים את כל משימות היום (בדיקות, זריקות, ארוחות) לפי הסדר ולהגיע לשינה בשלום.
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <strong className="text-blue-400 block">🕹️ איך משחקים?</strong>
+                                            <ul className="list-disc list-inside space-y-1 text-slate-400">
+                                                <li>השתמשו בחיצים שבתחתית המסך כדי לנווט.</li>
+                                                <li>עקבו אחרי האייקון המהבהב במבוך.</li>
+                                                <li>חובה לבצע את המשימות <span className="text-white underline">לפי הסדר</span>.</li>
+                                            </ul>
+                                        </div>
+
+                                        <div className="bg-red-900/20 p-3 rounded-lg border border-red-900/30">
+                                            <strong className="text-red-400 block mb-1">⚠️ שימו לב:</strong>
+                                            החיים מלאים הפרעות! צפו לשיחות טלפון, התראות סוכר ועוד, שיעצרו אתכם ויעלו את מד הסטרס.
+                                        </div>
+                                    </div>
+
+                                    <button 
+                                        onClick={startNewGame}
+                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg"
+                                    >
+                                        <Play size={20} fill="currentColor" /> התחל משחק
+                                    </button>
+                                </div>
+                             </div>
+                        )}
+
                         {/* Target Info */}
                         <div className="absolute top-2 left-2 right-2 flex justify-center z-10 pointer-events-none">
                             <div className="bg-slate-900/90 border border-yellow-500/30 px-4 py-1 rounded-full shadow-lg backdrop-blur text-yellow-400 text-sm font-bold flex items-center gap-2">
@@ -315,7 +362,7 @@
                                 gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`
                             }}
                         >
-                            {maze.map((row, y) => row.map((cell, x) => {
+                            {maze.length > 0 ? maze.map((row, y) => row.map((cell, x) => {
                                 let content = null;
                                 if (playerPos.x === x && playerPos.y === y) {
                                     content = <div className="w-[80%] h-[80%] bg-blue-500 rounded-full border border-white shadow-lg shadow-blue-500/50 animate-pulse transition-all duration-75"></div>;
@@ -340,7 +387,7 @@
                                         {content}
                                     </div>
                                 );
-                            }))}
+                            })) : <div className="col-span-full row-span-full flex items-center justify-center text-slate-600">טוען מבוך...</div>}
                         </div>
 
                         {/* Distraction Overlay */}
